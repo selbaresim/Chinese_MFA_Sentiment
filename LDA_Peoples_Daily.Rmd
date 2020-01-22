@@ -1,0 +1,65 @@
+---
+title: "Anti-Foreign Boycotts as a Tool of Economic Coercion:LDA for People's Daily"
+author: "Mingmin Yang"
+date: "11/25/2019"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+    extra_dependencies:
+      ctexcap: UTF8
+---
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+```{r setup, include=FALSE}
+setwd("/Users/...")
+library(stargazer); library(quanteda);library(topicmodels); library(dplyr); library(tidyr)
+library(broom);library(readtext); library(jiebaR); library(ggplot2); library(stm);
+library(tinytex)
+JP <- readxl::read_xlsx('JP_PPD_LDA.xlsx')
+JP <- filter(JP, year == 2012)
+
+```
+
+## Section 1
+Transfer the text file into coprpus.
+```{r}
+PD_JP <- corpus(JP$text)
+```
+Run the file 'huangdfm', then construct a sparse document-feature matrix from corpus.
+```{r}
+source('HuangDFM.R')
+PD_JP_dfm <- huangdfm(PD_JP)
+```
+## Section 2
+Tuning LDA topics. We can see from the data that the best topic numbers would be from 23 to 27.
+```{r}
+#optimal.topics <- ldatuning::FindTopicsNumber(PD_JP_dfm, topics = seq(from = 2, to = 50, by = 1), metrics = c("Arun2010", "CaoJuan2009", "Griffiths2004"))
+#ldatuning::FindTopicsNumber_plot(optimal.topics) 
+```
+
+Lets run 24 topics
+```{r}
+K <- 24   #Topic number
+lda_n <- LDA(PD_JP_dfm, k = K, method = "Gibbs", 
+             control = list(verbose=25L, seed = 123, burnin = 100, iter = 1000)) #normally 1000~2000
+```
+
+Lets see the 10 key words from each topic
+```{r}
+terms_n <- get_terms(lda_n, 10) 
+terms_n <- as.data.frame(terms_n)
+terms_n
+```
+
+Then combine the top 2 topics for each document 
+```{r}
+topics <- topics(lda_n,2)
+topics <- t(topics)
+topics <- as.data.frame(topics)
+colnames(topics) <- c("Topic 1","Topic 2")
+topics<- as.data.frame(topics)
+JP_C <- bind_cols(JP,topics)
+```
+

@@ -1,0 +1,145 @@
+---
+title: 'Anti-Foreign Boycotts as a Tool of Economic Coercion: Sentiment Analysis for
+  MFA'
+author: "Mingmin Yang"
+date: "11/25/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(rJava);library(xlsxjars);library(xlsx);library(dplyr);
+library(tidyr);library(qwraps2);library(ggplot2);library(reshape2);
+library(zoo);library(stargazer);library(jiebaRD);library(jiebaR)
+```
+
+## Section 1: set working directory
+```{r,include=FALSE}
+setwd("/Users/...")
+WJBRoutinePress <- read.xlsx("MOFAQ&A2019_2018_2.xlsx", sheetName="Sheet1")
+MFA_QA <- read.xlsx("MFA_2018_QA2.xlsx", sheetName="Sheet1")
+```
+
+## Section 2: clean data
+```{r }
+WJBRoutinePress$hkey <- NULL
+WJBRoutinePress$NA. <- NULL
+WJBRoutinePress$title <- NULL
+WJBRoutinePress$author <- NULL
+WJBRoutinePress <- rename(WJBRoutinePress, date = speech_date, question = ask)
+WJBRoutinePress$date <- gsub("-","",WJBRoutinePress$date)
+toMatch1 <- c("日本","钓鱼岛") #Search for keyword, and rearrange the data.
+WJBRoutinePress$keep_Japan <- ifelse(grepl(paste(toMatch1,collapse="|"), WJBRoutinePress$question), 1,0)
+Japan <- filter(WJBRoutinePress, keep_Japan > 0)
+Japan$keep_Japan <- NULL
+Japan$NA..1 <- NULL
+```
+
+## Section 3: Get emotion
+### segemnt, stop words engine
+```{r }
+engine1 = worker(type  = "mix", stop_word ="stopwords.txt", 
+                 user = "/Users/ming-minyang/Dropbox/1_PHD/1_Dissertation01/Chapters/sentiment A/china_diplo_sent.txt")
+```
+
+## Get emotion
+```{r }
+words_total_1 <- data.frame(sentiment = 0,
+                            date = 0,
+                            stringsAsFactors = F)
+
+source('emotion_program.R')
+for (i in 1:nrow(Japan)){
+  words <-toString(Japan$answer[i])
+  words <- segment(words, engine1)
+  EmotionRank <-getEmotionalType(words,positive_ntu,negative_ntu)
+  words_total <- data.frame(sentiment = sum(EmotionRank),
+                            date = Japan$date[i],
+                            stringsAsFactors = F)
+  words_total_1 <- rbind(words_total_1,words_total)}
+```
+
+
+
+## Section 3-1, optional, export data
+
+```{r }
+#Bind table & export data
+Japan2<- words_total_1
+Japan2 <- Japan2[-1,]
+Japan3 <- bind_cols(Japan, Japan2)
+Japan3$date1 <- NULL
+Japan3$question <- NULL
+Japan3$sentiment2 <- ifelse(Japan3$sentiment>=1,1,
+                                  ifelse(Japan3$sentiment==0,0,-1))
+#write.table(Japan3, file = "Japan3.csv",row.names=FALSE, na="",col.names=FALSE, sep=",")
+#write.csv(Japan3, file = "Japan.csv",row.names=FALSE, na="")
+#Japan_sen <- read.csv("Japan3.csv", header=FALSE)
+colnames(Japan3) <- c('Date','Text','Sentiment','Sentiment_PN')
+#Japan_sen$Date <- as.Date(Japan_sen$Date, format= "%Y%m%d")
+Japan_sen2 <- Japan3
+Japan_sen2 <- Japan_sen2 %>% group_by(Date) %>% summarise(Avg = mean(Sentiment))
+Japan_sen2$Year <- substr(Japan_sen2$Date, 1, 4)
+Japan_sen2$Date <- as.factor(Japan_sen2$Date)
+Japan_sen2$Date <- as.Date(Japan_sen2$Date, format= "%Y%m%d")
+Japan_sen3 <- Japan_sen2 
+Japan_sen2 <- filter(Japan_sen2, Year == 2012)
+```
+
+
+## Plot the sentiment
+```{r }
+
+P <- ggplot(Japan_sen2, aes(Date, Avg)) + 
+  geom_bar(stat = "identity") +  #colour="black") +
+  #geom_bar(aes(fill = Year), stat = "identity") +  #colour="black") +
+  theme(axis.text.x = element_text(angle=70, vjust=0.5)) +
+  #scale_color_brewer() : https://ggplot2.tidyverse.org/reference/scale_brewer.html
+  #scale_fill_grey(start = .8, end = 0)  + 
+  xlab("Date") +
+  ylab("Sentiment") 
+
+P + scale_x_date() + 
+  geom_vline(aes(xintercept = as.Date("2012-02-28")), linetype="dashed", color = "black") +
+  geom_vline(aes(xintercept = as.Date("2012-07-01")), linetype="dashed", color = "black") +
+  geom_vline(aes(xintercept = as.Date("2012-08-13")), linetype="dashed", color = "black") +
+  geom_vline(aes(xintercept = as.Date("2012-09-11")), linetype="dashed", color = "black") +
+  geom_text(aes(as.Date("2012-02-28"), label="Japan completed island naming\n", y=-2.7), colour="black", angle=90, text=element_text(size=0.5)) +
+  geom_text(aes(as.Date("2012-07-01"), label="PM Noda confirmed plan to buy islands\n", y=-3), colour="black", angle=90, text=element_text(size=0.5))+
+  geom_text(aes(as.Date("2012-08-13"), label="Chinese authorities allowed widespread anti-Japanese protests\n", y=-4.2), colour="black", angle=90, text=element_text(size=0.5)) +
+  geom_text(aes(as.Date("2012-09-11"), label="Japanese government signed the contract to buy island\n", y=-3.6), colour="black", angle=90, text=element_text(size=0.5))
+```
+
+
+## R Markdown
+
+Th
+```{r }
+#Plot
+
+
+
+#Plot 2 with only positive or negative sentiment
+Japan_sen2$Sentiment_NP <- ifelse(Japan_sen2$Avg>=1,1,
+                                  ifelse(Japan_sen2$Avg==0,0,-1))
+
+P2 <- ggplot(Japan_sen2, aes(Date, Sentiment_NP)) + 
+  geom_bar(stat = "identity") +  #colour="black") +
+  #geom_bar(aes(fill = Year), stat = "identity") +  #colour="black") +
+  theme(axis.text.x = element_text(angle=70, vjust=0.5)) +
+  #scale_color_brewer() : https://ggplot2.tidyverse.org/reference/scale_brewer.html
+  #scale_fill_grey(start = .8, end = 0)  + 
+  xlab("Date") +
+  ylab("Sentiment") 
+P2
+P2 + scale_x_date() + 
+  geom_vline(aes(xintercept = as.Date("2012-02-28")), linetype="dashed", color = "black") +
+  geom_vline(aes(xintercept = as.Date("2012-07-01")), linetype="dashed", color = "black") +
+  geom_vline(aes(xintercept = as.Date("2012-08-13")), linetype="dashed", color = "black") +
+  geom_vline(aes(xintercept = as.Date("2012-09-11")), linetype="dashed", color = "black") +
+  geom_text(aes(as.Date("2012-02-08"), label="Japan completed island naming\n", y=-1), colour="black", angle=0, text=element_text(size=0.5)) +
+  geom_text(aes(as.Date("2012-06-10"), label="PM Noda confirmed plan to buy islands\n", y=-1.2), colour="black", angle=0, text=element_text(size=0.5))+
+  geom_text(aes(as.Date("2012-08-13"), label="Chinese authorities allowed\n widespread anti-Japanese protests\n", y=0.4), colour="black", angle=0, text=element_text(size=0.5)) +
+  geom_text(aes(as.Date("2012-10-11"), label="Japanese government signed\n the contract to buy island\n", y=0.6), colour="black", angle=0, text=element_text(size=0.5))
+
+```
+
